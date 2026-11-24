@@ -84,7 +84,7 @@ export async function synth(options: SynthOptions = {}) {
   const runId = process.env.GITHUB_RUN_ID || String(Date.now());
   const branch = `autodisco-${runId}`;
   const changelogs = new Array<string>();
-  let totalSemverity = 0;
+  let totalSemverity = Semverity.PATCH;
   await execa('git', ['checkout', '-B', branch]);
   for (const dir of dirs) {
     const apiChangeSets = changeSets.filter(x => x.api.name === dir);
