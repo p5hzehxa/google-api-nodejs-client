@@ -54,7 +54,9 @@ export async function synth(options: SynthOptions = {}) {
   const repository = process.env.GITHUB_REPOSITORY;
   const repositoryOwner = process.env.GITHUB_REPOSITORY_OWNER;
   if (!repository || !repositoryOwner) {
-    throw new Error('GITHUB_REPOSITORY and GITHUB_REPOSITORY_OWNER are required');
+    throw new Error(
+      'GITHUB_REPOSITORY and GITHUB_REPOSITORY_OWNER are required',
+    );
   }
   // only set these while running in the GitHub Actions environment
   if (process.env.GITHUB_ACTIONS) {
@@ -64,7 +66,12 @@ export async function synth(options: SynthOptions = {}) {
       'user.email',
       '41898282+github-actions[bot]@users.noreply.github.com',
     ]);
-    await execa('git', ['config', '--global', 'user.name', 'github-actions[bot]']);
+    await execa('git', [
+      'config',
+      '--global',
+      'user.name',
+      'github-actions[bot]',
+    ]);
     await execa('git', ['config', '--global', 'pack.threads', '2']);
     await execa('git', ['config', '--global', 'pack.windowMemory', '128m']);
     await execa('git', ['config', '--global', 'pack.packSizeLimit', '256m']);
@@ -98,7 +105,9 @@ export async function synth(options: SynthOptions = {}) {
     console.log(`Submitting change for ${dir}...`);
     const title = `${prefix}(${dir})${postfix}: update the API`;
     await execa('git', ['add', path.join('src/apis', dir)]);
-    const discoveryFiles = statusFiles.filter(x => x.startsWith(`discovery/${dir}-`));
+    const discoveryFiles = statusFiles.filter(x =>
+      x.startsWith(`discovery/${dir}-`),
+    );
     if (discoveryFiles.length > 0) {
       await execa('git', ['add', '--', ...discoveryFiles]);
     }
@@ -120,7 +129,11 @@ export async function synth(options: SynthOptions = {}) {
   if (statusAfterAdd.stdout.trim().length > 0) {
     await execa('git', ['commit', '-m', 'feat: regenerate index files']);
   }
-  const generatedCommits = await execa('git', ['rev-list', '--count', 'main..HEAD']);
+  const generatedCommits = await execa('git', [
+    'rev-list',
+    '--count',
+    'main..HEAD',
+  ]);
   if (Number(generatedCommits.stdout.trim()) === 0) {
     console.log('No generated commits; skipping push and pull request.');
     return;
@@ -135,7 +148,7 @@ export async function synth(options: SynthOptions = {}) {
       if (attempt === 3) {
         throw err;
       }
-      console.log(`Waiting 10 seconds before retrying git push...`);
+      console.log('Waiting 10 seconds before retrying git push...');
       await new Promise(resolve => setTimeout(resolve, 10000));
     }
   }
