@@ -1,0 +1,31 @@
+version: 2.1
+
+jobs:
+  test:
+    docker:
+      - image: cimg/node:22.16
+    working_directory: ~/project
+    steps:
+      - checkout
+      - restore_cache:
+          keys:
+            - npm-deps-v1-{{ checksum "package.json" }}
+            - npm-deps-v1-
+      - run:
+          name: Install dependencies
+          command: npm install
+      - save_cache:
+          key: npm-deps-v1-{{ checksum "package.json" }}
+          paths:
+            - node_modules
+      - run:
+          name: Lint
+          command: npm run lint
+      - run:
+          name: Run unit tests
+          command: npm test
+
+workflows:
+  test:
+    jobs:
+      - test

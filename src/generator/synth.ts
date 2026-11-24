@@ -51,9 +51,12 @@ export async function synth(options: SynthOptions = {}) {
   if (!githubToken) {
     throw new Error('please include a GITHUB_TOKEN');
   }
-  const codeBotToken = process.env.CODE_BOT_TOKEN;
-  if (!codeBotToken) {
-    throw new Error('please include a CODE_BOT_TOKEN');
+  const repository = process.env.GITHUB_REPOSITORY;
+  const repositoryOwner = process.env.GITHUB_REPOSITORY_OWNER;
+  if (!repository || !repositoryOwner) {
+    throw new Error(
+      'GITHUB_REPOSITORY and GITHUB_REPOSITORY_OWNER are required',
+    );
   }
   // only set these while running in the GitHub Actions environment
   if (process.env.GITHUB_ACTIONS) {
@@ -61,14 +64,13 @@ export async function synth(options: SynthOptions = {}) {
       'config',
       '--global',
       'user.email',
-      'yoshi-automation@google.com',
+      '41898282+github-actions[bot]@users.noreply.github.com',
     ]);
-    await execa('git', ['config', '--global', 'user.name', 'Yoshi Automation']);
     await execa('git', [
       'config',
       '--global',
-      `url.https://${process.env.CODE_BOT_TOKEN}@github.com/.insteadOf`,
-      'https://github.com/',
+      'user.name',
+      'github-actions[bot]',
     ]);
     await execa('git', ['config', '--global', 'pack.threads', '2']);
     await execa('git', ['config', '--global', 'pack.windowMemory', '128m']);
@@ -86,9 +88,10 @@ export async function synth(options: SynthOptions = {}) {
     );
   });
   console.log(`Changes found in ${dirs.length} APIs`);
-  const branch = 'autodisco';
+  const runId = process.env.GITHUB_RUN_ID || String(Date.now());
+  const branch = `autodisco-${runId}`;
   const changelogs = new Array<string>();
-  let totalSemverity = 0;
+  let totalSemverity = Semverity.PATCH;
   await execa('git', ['checkout', '-B', branch]);
   for (const dir of dirs) {
     const apiChangeSets = changeSets.filter(x => x.api.name === dir);
@@ -102,8 +105,11 @@ export async function synth(options: SynthOptions = {}) {
     console.log(`Submitting change for ${dir}...`);
     const title = `${prefix}(${dir})${postfix}: update the API`;
     await execa('git', ['add', path.join('src/apis', dir)]);
-    if (statusFiles.filter(x => x.startsWith(`discovery/${dir}-`)).length > 0) {
-      await execa('git', ['add', `discovery/${dir}-*`]);
+    const discoveryFiles = statusFiles.filter(x =>
+      x.startsWith(`discovery/${dir}-`),
+    );
+    if (discoveryFiles.length > 0) {
+      await execa('git', ['add', '--', ...discoveryFiles]);
     }
     // Write commit message to file, since it might be large enough to
     // cause spawn E2BIG in CI/CD:
@@ -123,33 +129,41 @@ export async function synth(options: SynthOptions = {}) {
   if (statusAfterAdd.stdout.trim().length > 0) {
     await execa('git', ['commit', '-m', 'feat: regenerate index files']);
   }
+  const generatedCommits = await execa('git', [
+    'rev-list',
+    '--count',
+    'main..HEAD',
+  ]);
+  if (Number(generatedCommits.stdout.trim()) === 0) {
+    console.log('No generated commits; skipping push and pull request.');
+    return;
+  }
   const prefix = getPrefix(totalSemverity);
   for (let attempt = 1; attempt <= 3; attempt++) {
     try {
-      await execa('git', ['push', 'origin', branch, '--force']);
+      await execa('git', ['push', 'origin', branch]);
       break;
     } catch (err) {
       console.warn(`[Git Push Attempt ${attempt}/3 Failed]: ${err}`);
       if (attempt === 3) {
         throw err;
       }
-      console.log(`Waiting 10 seconds before retrying git push...`);
+      console.log('Waiting 10 seconds before retrying git push...');
       await new Promise(resolve => setTimeout(resolve, 10000));
     }
   }
   try {
-    // Open the pull request with the YOSHI_CODE_BOT_TOKEN
+    // Open a review pull request in the authenticated user's own repository.
     await gaxios.request({
       method: 'POST',
       headers: {
-        Authorization: `token ${codeBotToken}`,
+        Authorization: `Bearer ${githubToken}`,
+        'X-GitHub-Api-Version': '2022-11-28',
       },
-      url: 'https://api.github.com/repos/googleapis/google-api-nodejs-client/pulls',
+      url: `https://api.github.com/repos/${repository}/pulls`,
       data: {
-        title: `${prefix}: run the generator`,
-        owner: 'googleapis',
-        repo: 'google-api-nodejs-client',
-        head: `yoshi-code-bot:${branch}`,
+        title: `${prefix}: update generated Google APIs`,
+        head: `${repositoryOwner}:${branch}`,
         base: 'main',
         body: changelogs.join('\n\n').slice(0, 65000),
       },
