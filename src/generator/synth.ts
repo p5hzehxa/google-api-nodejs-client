@@ -117,11 +117,14 @@ export async function synth(options: SynthOptions = {}) {
   }
   await execa('git', ['add', '-A']);
   const statusAfterAdd = await execa('git', ['status', '--porcelain']);
-  if (statusAfterAdd.stdout.trim().length === 0) {
-    console.log('No generated changes; skipping push and pull request.');
+  if (statusAfterAdd.stdout.trim().length > 0) {
+    await execa('git', ['commit', '-m', 'feat: regenerate index files']);
+  }
+  const generatedCommits = await execa('git', ['rev-list', '--count', 'main..HEAD']);
+  if (Number(generatedCommits.stdout.trim()) === 0) {
+    console.log('No generated commits; skipping push and pull request.');
     return;
   }
-  await execa('git', ['commit', '-m', 'feat: regenerate index files']);
   const prefix = getPrefix(totalSemverity);
   for (let attempt = 1; attempt <= 3; attempt++) {
     try {
