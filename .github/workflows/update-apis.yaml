@@ -1,10 +1,17 @@
+name: Update generated APIs
+
 on:
   schedule:
     - cron: "0 1 * * *"
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: update-generated-apis
+  cancel-in-progress: false
 
 jobs:
   update-apis:
@@ -13,18 +20,32 @@ jobs:
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version: 22
-      - run: gh repo fork googleapis/google-api-nodejs-client --fork-name google-api-nodejs-client-autodisco --clone
+
+      - name: Clone my fork
         env:
-          GH_TOKEN: ${{ secrets.SOURCE_GITHUB_TOKEN_PRIVATE }}
-      - run: gh repo sync yoshi-code-bot/google-api-nodejs-client-autodisco --force
-        env:
-          GH_TOKEN: ${{ secrets.SOURCE_GITHUB_TOKEN_PRIVATE }}
-      - run: npm install
-        working-directory: ./google-api-nodejs-client-autodisco
-      - run: npm run update-disclaimers
-        working-directory: ./google-api-nodejs-client-autodisco
-      - run: npm run submit-prs
-        working-directory: ./google-api-nodejs-client-autodisco
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh repo clone "$GITHUB_REPOSITORY" google-api-nodejs-client
+
+      - name: Update local main from upstream
+        working-directory: ./google-api-nodejs-client
+        run: |
+          git remote add upstream https://github.com/googleapis/google-api-nodejs-client.git
+          git fetch upstream main
+          git checkout -B main origin/main
+          git merge --no-edit upstream/main
+
+      - name: Install dependencies
+        working-directory: ./google-api-nodejs-client
+        run: npm install
+
+      - name: Update disclaimers
+        working-directory: ./google-api-nodejs-client
+        run: npm run update-disclaimers
+
+      - name: Generate API updates and open a review PR
+        working-directory: ./google-api-nodejs-client
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          CODE_BOT_TOKEN: ${{ secrets.SOURCE_GITHUB_TOKEN_PRIVATE }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_REPOSITORY_OWNER: ${{ github.repository_owner }}
+        run: npm run submit-prs
