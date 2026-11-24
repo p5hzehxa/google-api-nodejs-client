@@ -98,8 +98,9 @@ export async function synth(options: SynthOptions = {}) {
     console.log(`Submitting change for ${dir}...`);
     const title = `${prefix}(${dir})${postfix}: update the API`;
     await execa('git', ['add', path.join('src/apis', dir)]);
-    if (statusFiles.filter(x => x.startsWith(`discovery/${dir}-`)).length > 0) {
-      await execa('git', ['add', `discovery/${dir}-*`]);
+    const discoveryFiles = statusFiles.filter(x => x.startsWith(`discovery/${dir}-`));
+    if (discoveryFiles.length > 0) {
+      await execa('git', ['add', '--', ...discoveryFiles]);
     }
     // Write commit message to file, since it might be large enough to
     // cause spawn E2BIG in CI/CD:
