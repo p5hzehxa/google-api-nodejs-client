@@ -24,7 +24,9 @@ jobs:
       - name: Clone my fork
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh repo clone "$GITHUB_REPOSITORY" google-api-nodejs-client
+        run: |
+          gh auth setup-git
+          gh repo clone "$GITHUB_REPOSITORY" google-api-nodejs-client
 
       - name: Update local main from upstream
         working-directory: ./google-api-nodejs-client
